@@ -13,6 +13,7 @@ maim
 After installing all the dependencies, you will need to go to the directory of this repository and run:
 
 cmake ./
+
 make
 
 To run enter:
