@@ -12,11 +12,15 @@ bool stopFl;
 
 void handleEvent(XIDeviceEvent* ev) {
     if ((ev->evtype == XI_KeyPress) && (ev->detail == 33) ) {
-        pauseFl = !pauseFl;        
+        pauseFl = !pauseFl; 
+        if(pauseFl) std::cout << "Pause on" << std::endl;
+        else std::cout << "Pause off" << std::endl;
     } else if ((ev->evtype == XI_KeyRelease) && (ev->detail == 24)) {
         stopFl = true;
+        std::cout << "Good luck!" << std::endl;
     }
 }
+
 
 std::string exec(std::string command) { // give output from command
    char buffer[128];
