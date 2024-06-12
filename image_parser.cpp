@@ -141,7 +141,6 @@ int main(void){
     int height = image.rows;
     
     while(!stopFl){
-        bool empty = true;
         if(pauseFl) continue; // pause
 
         for(int y = 0; y < height; y+=20) {
@@ -160,12 +159,7 @@ int main(void){
             }
             if(stopFl) break;
         }
-
-        if(empty){
-            pauseFl = true;
-            continue;
-        }
-
+        
         std::system(maim_com.c_str());
         image = cv::imread("area.png", cv::IMREAD_COLOR);
         if(image.empty()) {
