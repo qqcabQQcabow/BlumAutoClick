@@ -6,6 +6,8 @@
 #include <X11/Xlib.h>
 #include <X11/extensions/XTest.h>
 #include <X11/extensions/XInput2.h>
+#define PART 7
+
 int x_gl, y_gl; // window position
 bool pauseFl;
 bool stopFl;
@@ -20,7 +22,6 @@ void handleEvent(XIDeviceEvent* ev) {
         std::cout << "Good luck!" << std::endl;
     }
 }
-
 
 std::string exec(std::string command) { // give output from command
    char buffer[128];
@@ -70,6 +71,10 @@ void click(Display* display, int x, int y) {
     XFlush(display);
 }
 
+bool isGreen(int r, int g, int b){
+    return (102 <= r && r <= 220) && (200 <= g && g <= 255) && (0 <= b && b <= 125);
+}
+
 void handler(Display *display){ // keyboardHandler
     int opcode, event, error;
     if (!XQueryExtension(display, "XInputExtension", &opcode, &event, &error)) {
@@ -98,8 +103,23 @@ void handler(Display *display){ // keyboardHandler
     }
 }
 
-bool isGreen(int r, int g, int b){
-    return (102 <= r && r <= 220) && (200 <= g && g <= 255) && (0 <= b && b <= 125);
+cv::Mat image;
+std::vector<std::pair<int, int>> to_click;
+
+void ParsePieceImage(int sY, int stY, int stX){
+    for(int y = sY; y < stY; y+=20){
+        for(int x = 0; x < stX; x+=20){
+            cv::Vec3b color = image.at<cv::Vec3b>(cv::Point(x, y));
+
+            int blue = color[0];
+            int green = color[1];
+            int red = color[2];
+
+            if(isGreen(red, green, blue)){
+                to_click.push_back(std::make_pair(x+x_gl, y+y_gl));
+            }
+        }
+    }
 }
 
 int main(void){
@@ -112,7 +132,6 @@ int main(void){
         std::cerr << "X display is not open" << std::endl;
         return 1;
     }
-
 
     std::thread keyboardHandler = std::thread(handler, display);
 
@@ -133,7 +152,7 @@ int main(void){
     std::cout << std::endl;
     std::cout << "Press 'p' for pause, 'q' to exit" << std::endl;
 
-    cv::Mat image = cv::imread("area.png", cv::IMREAD_COLOR); // read image
+    image = cv::imread("area.png", cv::IMREAD_COLOR); // read image
 
     if(image.empty()) {
         std::cerr << "Не удалось открыть или найти изображение!" << std::endl;
@@ -143,27 +162,26 @@ int main(void){
     // get image size
     int width = image.cols;
     int height = image.rows;
-    
+    int x_click, y_click;
+    int countPiece = (height / PART);
+
+    std::vector<std::thread> threads;
     while(!stopFl){
         if(pauseFl) continue; // pause
-
-        for(int y = 0; y < height; y+=20) {
-            for(int x = 0; x < width; x+=20) {
-                if(stopFl) break;
-                cv::Vec3b color = image.at<cv::Vec3b>(cv::Point(x, y));
-
-                int blue = color[0];
-                int green = color[1];
-                int red = color[2];
-
-                if(isGreen(red, green, blue)){
-                    click(display, x_gl + x, y_gl + y);
-                    empty = false;
-                }
-            }
-            if(stopFl) break;
+                              //
+        for(int y = countPiece; y < height; y += countPiece){
+            threads.emplace_back(ParsePieceImage, y - countPiece, y, width); 
         }
-        
+        for(auto& th : threads){
+            th.join();
+        }
+        for(auto& coord : to_click){
+            click(display, coord.first, coord.second);
+        }
+
+        threads.clear();
+        to_click.clear();
+
         std::system(maim_com.c_str());
         image = cv::imread("area.png", cv::IMREAD_COLOR);
         if(image.empty()) {
@@ -171,7 +189,9 @@ int main(void){
             return -1;
         }
     }
+
     XCloseDisplay(display);
     keyboardHandler.join();
     return 0;
 }
+
