@@ -3,6 +3,8 @@
 #include <string>
 #include <opencv2/opencv.hpp>
 #include <cstdlib>
+#include <termios.h>
+#include <unistd.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/XTest.h>
 #include <X11/extensions/XInput2.h>
@@ -22,6 +24,19 @@ void handleEvent(XIDeviceEvent* ev) {
         std::cout << "Good luck!" << std::endl;
     }
 }
+// Функция для установки терминала в режим без эха
+void setEcho(bool enable) {
+    struct termios tty;
+    tcgetattr(STDIN_FILENO, &tty);
+    if (!enable) {
+        // Отключаем эхо
+        tty.c_lflag &= ~ECHO;
+    } else {
+        // Включаем эхо
+        tty.c_lflag |= ECHO;
+    }
+    tcsetattr(STDIN_FILENO, TCSANOW, &tty);
+}
 
 std::string exec(std::string command) { // give output from command
    char buffer[128];
@@ -32,7 +47,6 @@ std::string exec(std::string command) { // give output from command
    if (!pipe) {
       return "popen failed!";
    }
-
    // read till end of process:
    while (!feof(pipe)) {
 
@@ -71,10 +85,6 @@ void click(Display* display, int x, int y) {
     XFlush(display);
 }
 
-bool isGreen(int r, int g, int b){
-    return (102 <= r && r <= 220) && (200 <= g && g <= 255) && (0 <= b && b <= 125);
-}
-
 void handler(Display *display){ // keyboardHandler
     int opcode, event, error;
     if (!XQueryExtension(display, "XInputExtension", &opcode, &event, &error)) {
@@ -103,31 +113,28 @@ void handler(Display *display){ // keyboardHandler
     }
 }
 
-cv::Mat image;
-std::vector<std::pair<int, int>> to_click;
+bool isWhite(int red, int green, int blue){
+    return (red == 255) && (green == 255) && (blue == 255);
+}
+cv::Mat image, mask;
+Display* display;
 
 void ParsePieceImage(int sY, int stY, int stX){
-    for(int y = sY; y < stY; y+=20){
-        for(int x = 0; x < stX; x+=20){
-            cv::Vec3b color = image.at<cv::Vec3b>(cv::Point(x, y));
-
-            int blue = color[0];
-            int green = color[1];
-            int red = color[2];
-
-            if(isGreen(red, green, blue)){
-                to_click.push_back(std::make_pair(x+x_gl, y+y_gl));
+    for(int y = sY; y < stY; y+=13){
+        for(int x = 0; x < stX; x+=13){
+            if(mask.at<uchar>(cv::Point(x,y)) == 255){
+               click(display, x+x_gl, y+y_gl+4);
             }
         }
     }
 }
 
 int main(void){
-
+    setEcho(false);
     pauseFl = true;
     stopFl = false;
 
-    Display* display = XOpenDisplay(NULL); // for fast ckick and keyboardHandler
+    display = XOpenDisplay(NULL); // for fast ckick and keyboardHandler
     if (display == NULL) {
         std::cerr << "X display is not open" << std::endl;
         return 1;
@@ -153,12 +160,17 @@ int main(void){
     std::cout << "Press 'p' for pause, 'q' to exit" << std::endl;
 
     image = cv::imread("area.png", cv::IMREAD_COLOR); // read image
+    cv::Mat hsv_image;
+    cv::cvtColor(image, hsv_image, cv::COLOR_BGR2HSV);
+    cv::Scalar lower_green(32, 100, 100); // bottom
+    cv::Scalar upper_green(42, 255, 255); // top                                      
+    cv::inRange(hsv_image, lower_green, upper_green, mask); // make middle of snow white, other - black
 
     if(image.empty()) {
-        std::cerr << "Не удалось открыть или найти изображение!" << std::endl;
+        std::cerr << "Failed to open image area.png!" << std::endl;
         return -1;
     }
-    
+
     // get image size
     int width = image.cols;
     int height = image.rows;
@@ -175,23 +187,24 @@ int main(void){
         for(auto& th : threads){
             th.join();
         }
-        for(auto& coord : to_click){
-            click(display, coord.first, coord.second);
-        }
 
         threads.clear();
-        to_click.clear();
 
         std::system(maim_com.c_str());
+
         image = cv::imread("area.png", cv::IMREAD_COLOR);
+
         if(image.empty()) {
             std::cerr << "Failed to open image area.png!" << std::endl;
             return -1;
         }
+        cv::cvtColor(image, hsv_image, cv::COLOR_BGR2HSV);
+        cv::inRange(hsv_image, lower_green, upper_green, mask);
+
     }
 
     XCloseDisplay(display);
     keyboardHandler.join();
+    setEcho(true);
     return 0;
 }
-
