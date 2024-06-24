@@ -3,12 +3,15 @@ This program automatically plays the game of the telegram bot Blum
 Only for linux!
 
 To build successfully you will need these packages:
-OpenCV
-libx11-dev
-libxtst-dev
-libxi-dev
+opencv
+opencv-samples
+hdf5
+libx11
+libxtst
+libxi
 xdotool
 maim
+vtk
 
 After installing all the dependencies, you will need to go to the directory of this repository and run:
 
