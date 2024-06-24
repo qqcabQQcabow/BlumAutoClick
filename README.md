@@ -22,3 +22,5 @@ To run enter:
 
 
 Once the program is running, launch the game and press p on your keyboard. To pause and unpause a program, press p on your keyboard. Press q to exit the program.
+
+If the bomb is located exactly under the snowflake, then the bomb will be pressed(
